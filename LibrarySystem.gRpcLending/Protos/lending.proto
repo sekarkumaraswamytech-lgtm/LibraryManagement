@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option csharp_namespace = "LibrarySystem.gRpcLending";
+package lending;
+
+service LendingDetailsService {
+  rpc GetRelatedBooks (BookRequest) returns (BooksResponse);
+  rpc RecordBorrow (BorrowRequest) returns (Empty);
+  rpc RecordReturn (ReturnRequest) returns (Empty);
+}
+
+message Empty {}
+message BookRequest { int32 BookId = 1; }
+message BorrowRequest { int32 UserId = 1; int32 BookId = 2; }
+message ReturnRequest { int32 LendingId = 1; }
+message Book { int32 Id = 1; string Title = 2; string Author = 3; int32 Pages = 4; }
+message BooksResponse { repeated Book Books = 1; }
+

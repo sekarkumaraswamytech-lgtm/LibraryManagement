@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option csharp_namespace = "LibrarySystem.gRpcUsers";
+
+package users;
+
+service UsersService {
+  rpc GetMostActiveUsers (DateRangeRequest) returns (UsersResponse);
+}
+
+message DateRangeRequest { string From = 1; string To = 2; }
+message User { int32 Id = 1; string Name = 2; }
+message UsersResponse { repeated User Users = 1; }

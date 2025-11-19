@@ -7,18 +7,18 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add logging (optional for integration tests)
 builder.Logging.AddConsole();
+
+// Use a unique InMemory database name per host instance to avoid duplicate seeding collisions in parallel tests.
+var dbName = $"BooksGrpcDb_{Guid.NewGuid():N}";
+builder.Services.AddDbContext<LibraryDbContext>(o => o.UseInMemoryDatabase(dbName));
 
 // gRPC + exception interceptor
 builder.Services.AddGrpc(options =>
 {
-    options.Interceptors.Add<GrpcExceptionInterceptor>(); // Ensure this class exists
-    // options.Interceptors.Add<GrpcCorrelationInterceptor>(); // Add if implemented
+    options.Interceptors.Add<GrpcExceptionInterceptor>();
+    // options.Interceptors.Add<GrpcCorrelationInterceptor>(); // if implemented
 });
-
-// Persistence (InMemory for test/integration)
-builder.Services.AddDbContext<LibraryDbContext>(o => o.UseInMemoryDatabase("BooksGrpcDb"));
 
 // Repositories
 builder.Services.AddScoped<IBookRepository, BookRepository>();
@@ -32,18 +32,41 @@ builder.Services.AddScoped<IUserService, UserService>();
 
 var app = builder.Build();
 
-// Optional seed (avoid duplicate seeding in parallel tests)
+// Safe seed (idempotent & duplicate-key protected)
 using (var scope = app.Services.CreateScope())
 {
     var ctx = scope.ServiceProvider.GetRequiredService<LibraryDbContext>();
-    if (!ctx.Books.Any())
+
+    // Only add if the specific Ids are absent
+    if (!ctx.Books.Any(b => b.Id == 1))
     {
-        ctx.Books.AddRange(
-            new LibrarySystem.Domain.Models.Book { Id = 1, BookId = 1001, Title = "Clean Code", Author = "Robert C. Martin", Pages = 464, TotalCopies = 5, AvailableCopies = 5 },
-            new LibrarySystem.Domain.Models.Book { Id = 2, BookId = 1002, Title = "Refactoring", Author = "Martin Fowler", Pages = 448, TotalCopies = 3, AvailableCopies = 3 }
-        );
-        ctx.SaveChanges();
+        ctx.Books.Add(new LibrarySystem.Domain.Models.Book
+        {
+            Id = 1,
+            BookId = 1001,
+            Title = "Clean Code",
+            Author = "Robert C. Martin",
+            Pages = 464,
+            TotalCopies = 5,
+            AvailableCopies = 5
+        });
     }
+
+    if (!ctx.Books.Any(b => b.Id == 2))
+    {
+        ctx.Books.Add(new LibrarySystem.Domain.Models.Book
+        {
+            Id = 2,
+            BookId = 1002,
+            Title = "Refactoring",
+            Author = "Martin Fowler",
+            Pages = 448,
+            TotalCopies = 3,
+            AvailableCopies = 3
+        });
+    }
+
+    ctx.SaveChanges();
 }
 
 app.MapGrpcService<BookgRpcService>();

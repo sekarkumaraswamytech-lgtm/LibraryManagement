@@ -1,40 +1,65 @@
 LibrarySystem
 
-A modular, layered .NET 8 library management system built with clean architecture principles, gRPC-based internal services, FluentValidation, structured logging with correlation IDs, optimistic concurrency, and full-stack automated testing.
+A modular, layered .NET 8 Library Management System built using clean architecture principles, gRPC microservices, FluentValidation, structured logging with correlation IDs, optimistic concurrency, and a full automated testing strategy.
 
 Architecture Overview
+Data Flow
+Client (HTTP)
+      ↓
+API Controllers
+      ↓
+gRPC Clients → gRPC Hosts
+      ↓
+Application Services
+      ↓
+Repositories
+      ↓
+EF Core
+      ↓
+Database
 
-Data Flow:
 
-Client (HTTP) ? API Controllers ? gRPC Clients ? gRPC Hosts ?
-Application Services ? Repositories ? EF Core ? Database
+This architecture provides:
 
-This architecture ensures separation of concerns, testability, and clear domain boundaries.
+✔ Strong separation of concerns
+✔ High testability
+✔ Clear domain boundaries
+✔ Scalable microservice-style structure
 
-Solution Structure
-Domain
+ Solution Structure
+ Domain Layer
 
 Core entities: Book, User, LendingRecord
 
-Concurrency management: RowVersion timestamp on Book
+Optimistic concurrency: RowVersion timestamp on Book
 
-Application
+Application Layer
 
 Services: BookService, UserService, LendingService
 
-Interfaces, custom exceptions, structured logging
+Features:
 
-Validation and business rules enforcement
+Business rules
 
-Infrastructure
+Validation
 
-LibraryDbContext with EF Core
+Structured logging
+
+Custom exceptions
+
+Infrastructure Layer
+
+EF Core (SQL Server + SQLite + InMemory)
+
+LibraryDbContext
 
 Repository implementations
 
-Migrations and persistence logic
+Database migrations
 
 gRPC Hosts
+
+Each domain area exposed as its own gRPC service:
 
 LibrarySystem.gRpcBooks
 
@@ -42,44 +67,66 @@ LibrarySystem.gRpcUsers
 
 LibrarySystem.gRpcLending
 
-Each host exposes its own proto service
-(can be combined into a single host later)
+(Services can be merged into a single host in future versions.)
 
-API Layer
+ API Layer
 
-REST gateway (LibraryController)
+REST gateway
 
-Delegates internal calls to gRPC services
+Routes incoming HTTP requests → delegates to gRPC services
 
-Tests
+Main entry point for UI or third-party clients
 
-Unit, repository, functional, integration, API E2E, validation, edge cases, and concurrency (planned)
+ Tests
+
+Automation coverage includes:
+
+Unit tests
+
+Repository tests
+
+Functional tests
+
+gRPC integration tests
+
+API end-to-end tests
+
+Validation tests
+
+Edge case tests
+
+Planned: concurrency + cancellation tests
 
 Tech Stack
 
 .NET 8 / C# 12
 
-EF Core 8 (InMemory + SQL Server)
+EF Core 8
 
 gRPC (Grpc.AspNetCore / Grpc.Net.Client)
 
 FluentValidation
 
-Logging: Structured logger + correlation ID middleware
+SQL Server / SQLite
 
-Testing: xUnit, FluentAssertions, Moq, WebApplicationFactory
+Structured Logging
 
-Optional roadmap: Polly, OpenTelemetry
+xUnit + FluentAssertions + Moq + WebApplicationFactory
 
-Public API Endpoints
-Endpoint	Description
-GET /api/library/users/most-active?from=&to=	Most active users in date range (defaults to last 30 days)
-GET /api/library/books/most-borrowed	Top borrowed book(s)
-GET /api/library/books/{bookId}/related	Related books via co-borrowing analysis
-GET /api/library/books/{userId}/{bookId}/reading-pace	Estimated reading hours
+(Optional Roadmap) Polly, OpenTelemetry
+
+ Public API Endpoints
+HTTP Endpoint	Description
+GET /api/library/users/most-active?from=&to=	Returns most active users in the date range (default = last 30 days)
+GET /api/library/books/most-borrowed	Retrieves the most borrowed books
+GET /api/library/books/{bookId}/related	Returns related books using co-borrowing analysis
+GET /api/library/books/{userId}/{bookId}/reading-pace	Estimates reading pace in hours
 Validation
 
-Implemented using FluentValidation with automatic 400 Bad Request:
+Implemented with FluentValidation
+Automatic 400 Bad Request returns for invalid input.
+
+Validators:
 
 MostActiveUsersQueryValidator
 
@@ -87,13 +134,13 @@ RelatedBooksRouteValidator
 
 ReadingPaceRouteValidator
 
-Exception Strategy
+ Exception Strategy
 Custom Exception	gRPC Status	HTTP Status
 ValidationException	InvalidArgument	400
 NotFoundException	NotFound	404
 DataAccessException	Internal	500
 
-Centralized error mapping:
+Centralized handlers
 
 gRPC: GrpcExceptionInterceptor
 
@@ -101,50 +148,66 @@ HTTP: HttpExceptionMiddleware
 
 Logging & Correlation
 
-CorrelationIdMiddleware ensures all HTTP requests include x-correlation-id
+CorrelationIdMiddleware
+Automatically attaches or propagates x-correlation-id
 
-gRPC interceptors propagate metadata between hosts
+gRPC interceptors propagate metadata across services
 
-StructuredLogger<T> enriches logs with correlation ID, timestamp, method, and payload
+StructuredLogger<T> adds:
+
+timestamp
+
+correlation ID
+
+method name
+
+request payload
 
 Optimistic Concurrency
 
-Implemented via Book.RowVersion ([Timestamp])
+Implemented using:
 
-Prevents race conditions during borrow/return operations
+[Timestamp]
+public byte[] RowVersion { get; set; }
 
-TryAdjustAvailableCopiesAsync performs atomic updates with conflict detection
+
+Prevents race conditions when borrowing or returning books.
+
+Atomic updates through:
+
+TryAdjustAvailableCopiesAsync
 
 Testing Matrix
-Test Type	Location	Focus
-Unit Tests	ServiceTests	Business logic, validation
-Repository Tests	RepositoryTests	EF queries, DB operations
-Functional Tests	FunctionalTests	Multi-step flows
-gRPC Integration	gRpcTests	Host wiring, interceptors
-API End-to-End	ApiEndToEndTests	Full system flow
-Validation Tests	Validation	DTO validation rules
-Edge Cases	ServiceTests	Errors, boundaries
-Concurrency (planned)	�	Parallel borrow attempts
-Cancellation (planned)	�	Token propagation
-Database & Migrations
+Test Type	Location	Purpose
+Unit Tests	ServiceTests	Business rules & validations
+Repository Tests	RepositoryTests	EF Core queries, DB ops
+Functional Tests	FunctionalTests	Multi-step behaviors
+gRPC Integration	gRpcTests	Service wiring & interceptors
+API End-to-End	ApiEndToEndTests	Full-system request flow
+Validation Tests	Validation	DTO & request validation
+Edge Case Tests	ServiceTests	Boundaries & error paths
+Concurrency (planned)	—	Parallel borrow attempts
+Cancellation (planned)	—	Token verification
+Database Configuration
 
-Connection strings (appsettings.Development.json):
+Example (appsettings.Development.json):
 
 "ConnectionStrings": {
   "LibraryDbContext": "Server=(localdb)\\MSSQLLocalDB;Database=LibraryDb;Trusted_Connection=True;MultipleActiveResultSets=true",
   "LibraryDbContextSqlite": "Data Source=LibraryDb.sqlite"
 }
 
-Common Issues & Solutions
+Common Issues & Fixes
 Issue	Cause	Fix
-gRPC �Unavailable�	Host not running or wrong port	Check launchSettings and service URLs
-Test failures (500)	Missing DI registration	Ensure repositories & interceptors registered
-Wrong overload hit	String vs DateTime overload	Ensure mocks use the correct signature
-Concurrency update lost	Detached entities	Use RowVersion + atomic update method
+gRPC Unavailable	Wrong port / host not running	Check launchSettings & URLs
+500 Errors in Tests	Missing DI registration	Ensure all services are registered
+Wrong overload used	String vs DateTime mismatch	Adjust mocks or request types
+Concurrency update lost	Detached entities	Use RowVersion + atomic update
+“No lending records found”	Empty DB for range	Seed test data appropriately
 Running the System Locally
-1. Configure Startup Projects (Multiple Start)
+1. Set Multiple Startup Projects
 
-To run the entire platform locally, configure Visual Studio to launch all required services:
+Enable these to run together:
 
 LibrarySystem.API
 
@@ -154,18 +217,22 @@ LibrarySystem.gRpcLending
 
 LibrarySystem.gRpcUsers
 
-2. Run the API (CLI alternative)
+2. CLI Alternative
 dotnet run --project LibrarySystemWeb.API
 
-3. Access Swagger UI
+3. Open Swagger
 https://localhost:<port>/swagger
 
-4. (Optional) Correlation IDs
+4. Correlation IDs
 
-Include header x-correlation-id: <guid>
-If omitted, the middleware automatically generates one.
+Optional:
+
+x-correlation-id: <guid>
+
+
+Middleware auto-generates one if missing.
 
 License
 
-Internal / educational usage.
-Add a LICENSE file before public distribution.
+Internal / educational use only.
+Add a LICENSE file before making this repository public.
